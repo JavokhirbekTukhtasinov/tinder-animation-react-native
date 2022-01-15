@@ -57,6 +57,9 @@ const renderData = (item: any) => {
     </Card>
   );
 }
+
+
+
   return (
     <ScrollView >
       {/* <Ball/> */}

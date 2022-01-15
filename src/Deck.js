@@ -1,56 +1,70 @@
 import React, {useState} from 'react';
-import {View, Text, PanResponder, Animated, Dimensions} from 'react-native';
+import {
+  View,
+  Text,
+  PanResponder,
+  Animated,
+  Dimensions,
+  StyleSheet,
+} from 'react-native';
+import {Button, Card} from 'react-native-elements';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
-const Deck = ({data, renderData}) => {
-  const [position, setPostion] = useState({x: null, y: null});
-  const panResponder = React.useRef(
-    PanResponder.create({
-      // Ask to be the responder:
-      onStartShouldSetPanResponder: (evt, gestureState) => true,
-      onStartShouldSetPanResponderCapture: (evt, gestureState) => true,
-      onMoveShouldSetPanResponder: (evt, gestureState) => true,
-      onMoveShouldSetPanResponderCapture: (evt, gestureState) => true,
-      onPanResponderGrant: (evt, gestureState) => {
-        // The gesture has started. Show visual feedback so the user knows
-        // what is happening!
-        // gestureState.d{x,y} will be set to zero now
-      },
-      onPanResponderMove: (evt, gestureState) => {
-        setPostion({
-          x: gestureState.dx,
-          y: gestureState.dy,
-        });
-        // The most recent move distance is gestureState.move{X,Y}
-        // The accumulated gesture distance since becoming responder is
-        // gestureState.d{x,y}
-      },
-      onPanResponderTerminationRequest: (evt, gestureState) => true,
-      onPanResponderRelease: (evt, gestureState) => {
+const SWIPE_THRESHOLD = 0.5 * SCREEN_WIDTH;
+const SWIPE_OUT_DURATION = 250;
+
+const Deck = ({
+  data,
+  renderData,
+  onSwipeLeft = () => {},
+  onSwipeRight = () => {},
+}) => {
+  //   const [position, setPostion] = useState({x: null, y: null});
+  const [index, setIndex] = useState(0);
+
+  const animation = new Animated.ValueXY();
+  const panResponder = PanResponder.create({
+    // Ask to be the responder:
+    onStartShouldSetPanResponder: (evt, gestureState) => true,
+
+    onPanResponderMove: (evt, gestureState) => {
+      animation.setValue({x: gestureState.dx, y: gestureState.dy});
+    },
+
+    onPanResponderRelease: (evt, gestureState) => {
+      if (gestureState.dx > SWIPE_THRESHOLD) {
+        foreSwipe('right');
+      } else if (gestureState.dx < -SWIPE_THRESHOLD) {
+        foreSwipe('left');
+      } else {
         resetPosition();
-        console.log('stopped');
-      },
-      onPanResponderTerminate: (evt, gestureState) => {
-        // Another component has become the responder, so this gesture
-        // should be cancelled
-      },
-      onShouldBlockNativeResponder: (evt, gestureState) => {
-        // Returns whether this component should block native components from becoming the JS
-        // responder. Returns true by default. Is currently only supported on android.
-        return true;
-      },
-    }),
-  ).current;
+      }
+    },
+  });
 
   // Animayion
-  const animation = new Animated.ValueXY();
   Animated.spring(animation, {
     toValue: {
-      x: position.x,
-      y: position.y,
+      x: 0,
+      y: 0,
     },
     useNativeDriver: false,
   }).start();
+
+  const foreSwipe = direction => {
+    const x = direction === 'right' ? SCREEN_WIDTH : -SCREEN_WIDTH;
+    Animated.timing(animation, {
+      toValue: {x, y: 0},
+      duration: SWIPE_OUT_DURATION,
+      useNativeDriver: false,
+    }).start(() => onSwipteComplete(direction));
+  };
+
+  const onSwipteComplete = direction => {
+    const item = data[index];
+    direction === 'rigth' ? onSwipeRight(item) : onSwipeLeft(item);
+    setIndex(index + 1);
+  };
 
   const resetPosition = () => {
     Animated.spring(animation, {
@@ -74,13 +88,30 @@ const Deck = ({data, renderData}) => {
     };
   };
 
+  const noMoreCard = () => {
+    return (
+      <Card>
+        <Card.Title>No More Card</Card.Title>
+        <Card.Divider />
+        <Text>
+          If you want to see more cads then please pres "Get more" button
+        </Text>
+        <Button title={'Get more'} onPress={() => setIndex(0)} />
+      </Card>
+    );
+  };
+
   const renderCards = () => {
-    return data.map((item, index) => {
-      if (index === 0) {
+    if (index >= data.length) {
+      return noMoreCard();
+    }
+    return data.map((item, i) => {
+      if (i < index) return null;
+      if (i === index) {
         return (
           <Animated.View
-            key={index}
-            style={getCardStyle()}
+            key={item.id}
+            style={[getCardStyle(), {position: 'absolute'}]}
             {...panResponder.panHandlers}>
             {renderData(item)}
           </Animated.View>
@@ -89,7 +120,18 @@ const Deck = ({data, renderData}) => {
       return renderData(item);
     });
   };
-  return <View>{renderCards()}</View>;
+  return (
+    <View style={{height: '100%'}}>
+      <Animated.View>{renderCards()}</Animated.View>
+    </View>
+  );
 };
 
+const styles = StyleSheet.create({
+  cardContainer: {
+    position: 'absolute',
+    width: SCREEN_WIDTH,
+    height: '100%',
+  },
+});
 export default Deck;
